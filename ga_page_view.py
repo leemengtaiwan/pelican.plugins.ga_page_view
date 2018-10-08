@@ -7,8 +7,10 @@ from oauth2client.client import SignedJwtAssertionCredentials
 import httplib2
 
 import parsedatetime as pdt
+from pprint import pprint
 import datetime
 import sys
+import traceback
 
 
 def get_service(api_name, api_version, scope, key_file_location,
@@ -96,6 +98,14 @@ def get_page_view(generators):
         for slug, pv in result['rows']:
             page_view[slug] = int(pv)
 
+        # add `.html` for those slugs without it to normalized
+        for slug, pv in page_view.items():
+            father_slug = slug + '.html'
+            if father_slug in page_view:
+                # print("Add {} pageview of {} to {}.".format(pv, slug, father_slug))
+                page_view[father_slug] += pv
+        # pprint(page_view)
+
         popular_start_str = generator.settings.get('POPULAR_POST_START', 'a month ago')
         popular_start_date = str(pdt.Calendar().parseDT(
             popular_start_str, datetime.datetime.now())[0].date())
@@ -108,6 +118,7 @@ def get_page_view(generators):
             popular_page_view[slug] = int(pv)
     except:
         sys.stderr.write("[ga_page_view] Failed to fetch page view information.\n")
+        sys.stderr.write(traceback.format_exc())
 
     article_generator = [g for g in generators if type(g) is ArticlesGenerator][0]
     page_generator = [g for g in generators if type(g) is PagesGenerator][0]
