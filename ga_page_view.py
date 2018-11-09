@@ -3,7 +3,7 @@ from pelican.generators import ArticlesGenerator, PagesGenerator
 
 from apiclient.discovery import build
 from oauth2client.client import SignedJwtAssertionCredentials
-
+import re
 import httplib2
 
 import parsedatetime as pdt
@@ -95,16 +95,26 @@ def get_page_view(generators):
         result = service.data().ga().get(ids='ga:' + profile_id, start_date=start_date,
                                         end_date=end_date, max_results=999999, metrics=metric,
                                         dimensions='ga:pagePath').execute()
+
         for slug, pv in result['rows']:
             page_view[slug] = int(pv)
 
-        # add `.html` for those slugs without it to normalized
+        # add page views of those slugs to their original pages
+        # 1. without `.html`
+        # 2. with fbclid
         for slug, pv in page_view.items():
-            father_slug = slug + '.html'
+            if 'fbclid' in slug:
+                father_slug = re.sub('\?fbclid=.*', '', slug)
+                if '.html' not in slug:
+                    father_slug += '.html'
+            else:
+                father_slug = slug + '.html'
+
             if father_slug in page_view:
-                # print("Add {} pageview of {} to {}.".format(pv, slug, father_slug))
+                # show large pv contribution
+                # if pv > 50:
+                #     print("Add {} pageview of {} to {}.".format(pv, slug, father_slug))
                 page_view[father_slug] += pv
-        # pprint(page_view)
 
         popular_start_str = generator.settings.get('POPULAR_POST_START', 'a month ago')
         popular_start_date = str(pdt.Calendar().parseDT(
@@ -126,17 +136,27 @@ def get_page_view(generators):
     ARTICLE_SAVE_AS = generator.settings['ARTICLE_SAVE_AS']
     PAGE_SAVE_AS = generator.settings['PAGE_SAVE_AS']
 
-    total_page_view = 0
-    for pages, url_pattern in [(article_generator.articles, ARTICLE_SAVE_AS),
-                               (page_generator.pages, PAGE_SAVE_AS)]:
-        for page in pages:
-            url = '/%s' % (url_pattern.format(**page.__dict__))
-            pv = page_view.get(url, 0)
-            setattr(page, 'pageview', pv)
-            setattr(page, 'popular_pageview', popular_page_view.get(url, 0))
-            total_page_view += pv
+    # default: add pvs of articles as valid pvs
+    # total_page_view = 0
+    # for pages, url_pattern in [(article_generator.articles, ARTICLE_SAVE_AS),
+    #                            (page_generator.pages, PAGE_SAVE_AS)]:
+    #     for page in pages:
+    #         url = '/%s' % (url_pattern.format(**page.__dict__))
+    #         pv = page_view.get(url, 0)
+    #         setattr(page, 'pageview', pv)
+    #         setattr(page, 'popular_pageview', popular_page_view.get(url, 0))
+    #         total_page_view += pv
 
+    # 2018/11/09 update: use all page views
+    total_page_view = sum([int(pv) for _, pv in result['rows']])
     generator.context['total_page_view'] = total_page_view
+
+    # get number of total users
+    result = service.data().ga().get(
+        ids='ga:' + profile_id, start_date=start_date,
+        end_date=end_date, max_results=1, metrics='ga:users').execute()
+
+    generator.context['total_num_users'] = int(result['totalsForAllResults']['ga:users'])
 
 
 def register():
