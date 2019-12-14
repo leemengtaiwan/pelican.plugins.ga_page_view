@@ -102,7 +102,15 @@ def get_page_view(generators):
         # add page views of those slugs to their original pages
         # 1. without `.html`
         # 2. with fbclid
+
         for slug, pv in page_view.items():
+            # father_slug = None
+            # pageview from main site (leemeng.tw) but not subdomain (e.g. nmt.leemeng.tw)
+            if 'deep-learning-resources.html' in slug:
+
+                print(slug, pv)
+                # father_slug = slug.replace('leemeng.tw', '')
+
             if 'fbclid' in slug:
                 father_slug = re.sub('\?fbclid=.*', '', slug)
                 if '.html' not in slug:
@@ -112,8 +120,9 @@ def get_page_view(generators):
 
             if father_slug in page_view:
                 # show large pv contribution
-                # if pv > 50:
-                #     print("Add {} pageview of {} to {}.".format(pv, slug, father_slug))
+                if pv > 50:
+                    pass
+                    # print("Add {} pageview of {} to {}.".format(pv, slug, father_slug))
                 page_view[father_slug] += pv
 
         popular_start_str = generator.settings.get('POPULAR_POST_START', 'a month ago')
@@ -137,19 +146,22 @@ def get_page_view(generators):
     PAGE_SAVE_AS = generator.settings['PAGE_SAVE_AS']
 
     # default: add pvs of articles as valid pvs
-    # total_page_view = 0
-    # for pages, url_pattern in [(article_generator.articles, ARTICLE_SAVE_AS),
-    #                            (page_generator.pages, PAGE_SAVE_AS)]:
-    #     for page in pages:
-    #         url = '/%s' % (url_pattern.format(**page.__dict__))
-    #         pv = page_view.get(url, 0)
-    #         setattr(page, 'pageview', pv)
-    #         setattr(page, 'popular_pageview', popular_page_view.get(url, 0))
-    #         total_page_view += pv
+    total_page_view = 0
+    for pages, url_pattern in [(article_generator.articles, ARTICLE_SAVE_AS),
+                               (page_generator.pages, PAGE_SAVE_AS)]:
+        for page in pages:
+            url = '/%s' % (url_pattern.format(**page.__dict__))
+
+            pv = page_view.get(url, 0) + page_view.get('leemeng.tw' + url, 0)
+            print(page, pv)
+            setattr(page, 'pageview', pv)
+            setattr(page, 'popular_pageview', popular_page_view.get(url, 0))
+            total_page_view += pv
 
     # 2018/11/09 update: use all page views
     total_page_view = sum([int(pv) for _, pv in result['rows']])
     generator.context['total_page_view'] = total_page_view
+    print(f"Total pageviews: {total_page_view}")
 
     # get number of total users
     result = service.data().ga().get(
